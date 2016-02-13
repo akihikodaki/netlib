@@ -10,8 +10,13 @@ def assemble_request(request):
     if request.content == CONTENT_MISSING:
         raise HttpException("Cannot assemble flow with CONTENT_MISSING")
     head = assemble_request_head(request)
-    body = b"".join(assemble_body(request.data.headers, [request.data.content]))
-    return head + body
+    if request.data.content is None:
+        return head
+    else:
+        body = b"".join(
+            assemble_body(request.data.headers,
+                          [request.data.content]))
+        return head + body
 
 
 def assemble_request_head(request):

@@ -6,7 +6,8 @@ from netlib.exceptions import HttpException, HttpSyntaxException, HttpReadDiscon
 from netlib.http import Headers
 from netlib.http.http1.read import (
     read_request, read_response, read_request_head,
-    read_response_head, read_body, connection_close, expected_http_body_size, _get_first_line,
+    read_response_head, read_body, connection_close,
+    expected_http_body_size, _get_first_line,
     _read_request_line, _parse_authority_form, _read_response_line, _check_http_version,
     _read_headers, _read_chunked
 )
@@ -17,7 +18,7 @@ def test_read_request():
     rfile = BytesIO(b"GET / HTTP/1.1\r\n\r\nskip")
     r = read_request(rfile)
     assert r.method == "GET"
-    assert r.content == b""
+    assert r.content is None
     assert r.timestamp_end
     assert rfile.read() == b"skip"
 
@@ -121,27 +122,23 @@ def test_connection_close():
     assert connection_close(b"HTTP/1.0", headers)
     assert not connection_close(b"HTTP/1.1", headers)
 
-def test_expected_http_body_size():
+def test_expect_content():
     # Expect: 100-continue
-    assert expected_http_body_size(
-        treq(headers=Headers(expect="100-continue", content_length="42"))
-    ) == 0
+    assert treq(headers=Headers(expect="100-continue", content_length="42"))	\
+        .expect_content() == False
 
     # http://tools.ietf.org/html/rfc7230#section-3.3
-    assert expected_http_body_size(
-        treq(method=b"HEAD"),
-        tresp(headers=Headers(content_length="42"))
-    ) == 0
-    assert expected_http_body_size(
-        treq(method=b"CONNECT"),
-        tresp()
-    ) == 0
+    assert tresp(headers=Headers(content_length="42"))	\
+        .expect_content(treq(method=b"HEAD")) == False
+    assert tresp().expect_content(treq(method=b"CONNECT")) == False
     for code in (100, 204, 304):
-        assert expected_http_body_size(
-            treq(),
-            tresp(status_code=code)
-        ) == 0
+        assert tresp(status_code=code).expect_content(treq()) == False
 
+    # no length
+    assert treq(headers=Headers()).expect_content() == False
+
+def test_expected_http_body_size():
+    # http://tools.ietf.org/html/rfc7230#section-3.3
     # chunked
     assert expected_http_body_size(
         treq(headers=Headers(transfer_encoding="chunked")),
@@ -158,9 +155,6 @@ def test_expected_http_body_size():
     ) == 42
 
     # no length
-    assert expected_http_body_size(
-        treq(headers=Headers())
-    ) == 0
     assert expected_http_body_size(
         treq(headers=Headers()), tresp(headers=Headers())
     ) == -1

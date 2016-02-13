@@ -10,8 +10,15 @@ from .. import Request, Response, Headers
 
 def read_request(rfile, body_size_limit=None):
     request = read_request_head(rfile)
-    expected_body_size = expected_http_body_size(request)
-    request.data.content = b"".join(read_body(rfile, expected_body_size, limit=body_size_limit))
+    expect_body = request.expect_content()
+    if expect_body:
+        expected_body_size = expected_http_body_size(request)
+        request.data.content = b"".join(
+            read_body(rfile,
+                      expected_body_size,
+                      limit=body_size_limit))
+    else:
+        request.data.content = None
     request.timestamp_end = time.time()
     return request
 
@@ -49,8 +56,13 @@ def read_request_head(rfile):
 
 def read_response(rfile, request, body_size_limit=None):
     response = read_response_head(rfile)
-    expected_body_size = expected_http_body_size(request, response)
-    response.data.content = b"".join(read_body(rfile, expected_body_size, body_size_limit))
+    expect_body = response.expect_content(request)
+    if expect_body:
+        expected_body_size = expected_http_body_size(request, response)
+        response.data.content = b"".join(
+            read_body(rfile, expected_body_size, body_size_limit))
+    else:
+        response.data.content = None
     response.timestamp_end = time.time()
     return response
 
@@ -180,19 +192,6 @@ def expected_http_body_size(request, response=None):
         response_code = response.status_code
         is_request = False
 
-    if is_request:
-        if headers.get("expect", "").lower() == "100-continue":
-            return 0
-    else:
-        if request.method.upper() == "HEAD":
-            return 0
-        if 100 <= response_code <= 199:
-            return 0
-        if response_code == 200 and request.method.upper() == "CONNECT":
-            return 0
-        if response_code in (204, 304):
-            return 0
-
     if "chunked" in headers.get("transfer-encoding", "").lower():
         return None
     if "content-length" in headers:
@@ -203,8 +202,6 @@ def expected_http_body_size(request, response=None):
             return size
         except ValueError:
             raise HttpSyntaxException("Unparseable Content Length")
-    if is_request:
-        return 0
     return -1
 
 

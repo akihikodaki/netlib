@@ -46,6 +46,24 @@ class Response(Message):
             details=details
         )
 
+    def expect_content(self, request):
+        """
+        A boolean indicating whether a body is expected
+        """
+
+        # Determine to expect a boddy according to
+        # http://tools.ietf.org/html/rfc7230#section-3.3
+        if request.method.upper() == "HEAD":
+            return False
+        if 100 <= self.status_code <= 199:
+            return False
+        if self.status_code == 200 and request.method.upper() == "CONNECT":
+            return False
+        if self.status_code in (204, 304):
+            return False
+
+        return True
+
     @property
     def status_code(self):
         """

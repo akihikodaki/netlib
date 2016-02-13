@@ -95,6 +95,9 @@ class Message(utils.Serializable):
         if isinstance(content, bytes):
             self.headers["content-length"] = str(len(content))
 
+    def expect_content(self):
+        raise NotImplementedError()
+
     @property
     def http_version(self):
         """

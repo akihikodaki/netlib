@@ -50,6 +50,20 @@ class Request(Message):
             self.method, hostport, path
         )
 
+    def expect_content(self):
+        """
+        A boolean indicating whether a body is expected
+        """
+
+        # Determine to expect a boddy according to
+        # http://tools.ietf.org/html/rfc7230#section-3.3
+        if self.headers.get("expect", "").lower() == "100-continue":
+            return False
+        if not "content-length" in self.headers:
+            return False
+
+        return True
+
     @property
     def first_line_format(self):
         """
